@@ -1,105 +1,76 @@
 import { z } from "zod";
 import type { InferSchema, ToolMetadata } from "xmcp";
-import type { EndpointCreateParams } from "inboundemail/resources/endpoints";
 import { getClientContext } from "../../lib/client";
 
 export const schema = {
-	name: z.string().describe("A descriptive name for this endpoint"),
 	type: z
 		.enum(["webhook", "email", "email_group"])
-		.describe(
-			"Type of endpoint: 'webhook' for HTTP delivery, 'email' for forwarding to a single address, 'email_group' for forwarding to multiple addresses",
-		),
-	url: z
-		.string()
 		.optional()
-		.describe("Webhook URL (required for webhook type)"),
-	forwardTo: z
-		.string()
-		.optional()
-		.describe("Email address to forward to (required for email type)"),
-	emails: z
-		.array(z.string())
-		.optional()
-		.describe(
-			"List of email addresses to forward to (required for email_group type)",
-		),
-	preserveHeaders: z
+		.describe("Filter by endpoint type"),
+	active: z
 		.boolean()
 		.optional()
-		.describe(
-			"Whether to preserve original email headers when forwarding (for email/email_group types)",
-		),
+		.describe("Filter by active status"),
+	limit: z
+		.number()
+		.min(1)
+		.max(100)
+		.optional()
+		.describe("Maximum number of endpoints to return (1-100, default 50)"),
+	offset: z
+		.number()
+		.min(0)
+		.optional()
+		.describe("Number of endpoints to skip for pagination"),
+	search: z
+		.string()
+		.optional()
+		.describe("Search by endpoint name"),
 };
 
 export const metadata: ToolMetadata = {
-	name: "create_endpoint",
+	name: "list_endpoints",
 	description:
-		"Create a new endpoint for receiving emails. Webhooks deliver emails as HTTP POST requests, email forwards send to another address.",
+		"List all endpoints for receiving emails. Endpoints can be webhooks (HTTP delivery), email forwards, or email groups.",
 	annotations: {
-		title: "Create Endpoint",
-		readOnlyHint: false,
+		title: "List Endpoints",
+		readOnlyHint: true,
 		destructiveHint: false,
-		idempotentHint: false,
+		idempotentHint: true,
 	},
 };
 
-export default async function createEndpoint({
-	name,
+export default async function listEndpoints({
 	type,
-	url,
-	forwardTo,
-	emails,
-	preserveHeaders,
+	active,
+	limit,
+	offset,
+	search,
 }: InferSchema<typeof schema>) {
 	const { client } = getClientContext();
 
-	let config: EndpointCreateParams["config"];
-
-	switch (type) {
-		case "webhook":
-			if (!url) {
-				return JSON.stringify({
-					error: "URL is required for webhook endpoints",
-				});
-			}
-			config = { url };
-			break;
-		case "email":
-			if (!forwardTo) {
-				return JSON.stringify({
-					error: "forwardTo is required for email endpoints",
-				});
-			}
-			config = { forwardTo, preserveHeaders };
-			break;
-		case "email_group":
-			if (!emails || emails.length === 0) {
-				return JSON.stringify({
-					error: "emails array is required for email_group endpoints",
-				});
-			}
-			config = { emails, preserveHeaders };
-			break;
-		default:
-			return JSON.stringify({ error: `Unknown endpoint type: ${type}` });
-	}
-
-	const response = await client.endpoints.create({
-		name,
+	const response = await client.endpoints.list({
 		type,
-		config,
+		active: active !== undefined ? (active ? "true" : "false") : undefined,
+		limit: limit ?? 50,
+		offset: offset ?? 0,
+		search,
 	});
+
+	const endpoints = response.data.map((e) => ({
+		id: e.id,
+		name: e.name,
+		type: e.type,
+		isActive: e.isActive,
+		config: e.config,
+		deliveryStats: e.deliveryStats,
+		createdAt: e.createdAt,
+	}));
 
 	return JSON.stringify(
 		{
-			id: response.id,
-			name: response.name,
-			type: response.type,
-			isActive: response.isActive,
-			config: response.config,
-			message:
-				"Endpoint created successfully. You can now route email addresses to this endpoint.",
+			endpoints,
+			pagination: response.pagination,
 		},
 		null,
 		2,
