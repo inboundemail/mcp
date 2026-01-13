@@ -1,6 +1,46 @@
 # @inbound/mcp
 
-MCP (Model Context Protocol) server for the [Inbound Email API](https://inbound.new). This allows AI assistants like Claude to interact with your Inbound account to manage domains, endpoints, and emails.
+MCP (Model Context Protocol) server for the [Inbound Email API](https://inbound.new). Give your AI agent its own email address to send, receive, and manage emails.
+
+## Quick Start: Agent Mailbox
+
+The primary use case is giving an AI agent its own email identity. Set the `x-inbound-mailbox` header to your agent's email address:
+
+```json
+{
+  "mcpServers": {
+    "inbound": {
+      "url": "http://localhost:5454/mcp",
+      "headers": {
+        "x-inbound-api-key": "your-api-key",
+        "x-inbound-mailbox": "Support Agent <support@yourdomain.com>"
+      }
+    }
+  }
+}
+```
+
+The header supports both formats:
+- With display name: `Support Agent <support@yourdomain.com>`
+- Email only: `support@yourdomain.com`
+
+### Mailbox Tools
+
+| Tool | Description |
+|------|-------------|
+| `check_mailbox` | Check incoming emails for your mailbox (defaults to unread) |
+| `get_mailbox_threads` | Get conversation threads where your mailbox is a participant |
+| `send_from_mailbox` | Send emails - `from` is automatically set to your mailbox |
+| `reply_from_mailbox` | Reply to emails/threads - `from` is automatically set to your mailbox |
+
+### Agent Workflow
+
+1. **Check for new emails**: `check_mailbox` returns unread emails with IDs
+2. **Read email details**: Use `get_email` with the email ID to read full content
+3. **Reply to emails**: `reply_from_mailbox` sends replies with your agent identity
+4. **Send new emails**: `send_from_mailbox` sends emails as your agent
+
+When sending, the display name (e.g., "Support Agent") is included so recipients see a friendly sender name.
 
 ## Installation
 
@@ -25,7 +65,8 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
       "command": "npx",
       "args": ["-y", "@inbound/mcp"],
       "env": {
-        "INBOUND_API_KEY": "your-api-key"
+        "INBOUND_API_KEY": "your-api-key",
+        "INBOUND_MAILBOX": "Agent <agent@yourdomain.com>"
       }
     }
   }
@@ -37,7 +78,7 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 Start the server:
 
 ```bash
-INBOUND_API_KEY=your-api-key npx @inbound/mcp start:http
+npx @inbound/mcp start:http
 ```
 
 Then configure your client:
@@ -46,9 +87,10 @@ Then configure your client:
 {
   "mcpServers": {
     "inbound": {
-      "url": "http://localhost:3002/mcp",
+      "url": "http://localhost:5454/mcp",
       "headers": {
-        "x-inbound-api-key": "your-api-key"
+        "x-inbound-api-key": "your-api-key",
+        "x-inbound-mailbox": "Agent <agent@yourdomain.com>"
       }
     }
   }
@@ -57,47 +99,43 @@ Then configure your client:
 
 ## Authentication
 
-The MCP server authenticates using your Inbound API key. You can provide it via:
+The MCP server authenticates using your Inbound API key:
 
-1. **Environment variable**: `INBOUND_API_KEY`
-2. **HTTP header**: `x-inbound-api-key` (for HTTP transport)
+- **Environment variable**: `INBOUND_API_KEY`
+- **HTTP header**: `x-inbound-api-key`
 
-### Domain Restriction (Optional)
+### Optional: Domain Restriction
 
-To restrict all operations to a single domain, set the `x-inbound-domain` header (HTTP) or `INBOUND_DOMAIN` environment variable (STDIO):
+To restrict all operations to a single domain:
 
-```json
-{
-  "mcpServers": {
-    "inbound": {
-      "url": "http://localhost:3002/mcp",
-      "headers": {
-        "x-inbound-api-key": "your-api-key",
-        "x-inbound-domain": "example.com"
-      }
-    }
-  }
-}
-```
+- **Environment variable**: `INBOUND_DOMAIN`
+- **HTTP header**: `x-inbound-domain`
 
-## Available Tools
+## All Available Tools
 
-### Domains
-- `list_domains` - List all domains in your account
-- `create_domain` - Add a new domain (returns DNS records for verification)
-
-### Endpoints
-- `list_endpoints` - List webhook and email forwarding endpoints
-- `create_endpoint` - Create a webhook, email forward, or email group endpoint
+### Mailbox (Agent Mode)
+- `check_mailbox` - Check incoming emails for your mailbox
+- `get_mailbox_threads` - Get conversation threads for your mailbox
+- `send_from_mailbox` - Send an email from your mailbox
+- `reply_from_mailbox` - Reply to an email from your mailbox
 
 ### Emails
 - `list_emails` - List sent, received, and scheduled emails
 - `get_email` - Get detailed information about a specific email
 - `send_email` - Send or schedule an email
+- `reply_email` - Reply to an email or thread
+- `retry_email` - Retry delivery of a failed email
 
 ### Threads
 - `list_threads` - List email conversations
 - `get_thread` - Get all messages in a thread
+
+### Domains
+- `list_domains` - List all domains in your account
+
+### Endpoints
+- `list_endpoints` - List webhook and email forwarding endpoints
+- `create_endpoint` - Create a webhook, email forward, or email group endpoint
 
 ## Available Prompts
 
