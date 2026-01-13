@@ -11,6 +11,7 @@ const config: XmcpConfig = {
 				"Content-Type",
 				"x-inbound-api-key",
 				"x-inbound-domain",
+				"x-inbound-mailbox",
 				"mcp-session-id",
 				"mcp-protocol-version",
 			],
