@@ -65,7 +65,7 @@ export default async function sendFromMailbox({
 		});
 	}
 
-	const { client, mailbox } = context;
+	const { client, mailbox, mailboxAddress } = context;
 
 	if (!html && !text) {
 		return JSON.stringify({
@@ -73,6 +73,7 @@ export default async function sendFromMailbox({
 		});
 	}
 
+	// Use full mailbox string (with display name) for the from field
 	const response = await client.emails.send({
 		from: mailbox,
 		to,
@@ -90,6 +91,7 @@ export default async function sendFromMailbox({
 			id: response.id,
 			message_id: response.message_id,
 			from: mailbox,
+			from_address: mailboxAddress,
 			to,
 			subject,
 			message: scheduled_at

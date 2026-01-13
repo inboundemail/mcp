@@ -54,7 +54,7 @@ export default async function checkMailbox({
 		});
 	}
 
-	const { client, mailbox } = context;
+	const { client, mailbox, mailboxAddress } = context;
 
 	const response = await client.emails.list({
 		type: "received",
@@ -62,7 +62,7 @@ export default async function checkMailbox({
 		limit: String(limit ?? 25),
 		offset: String(offset ?? 0),
 		time_range: time_range ?? "7d",
-		address: mailbox, // Filter to emails for this mailbox address
+		address: mailboxAddress, // Filter to emails for this mailbox address
 	});
 
 	const emails = response.data.map((e) => ({
@@ -81,6 +81,7 @@ export default async function checkMailbox({
 	return JSON.stringify(
 		{
 			mailbox,
+			mailbox_address: mailboxAddress,
 			emails,
 			count: emails.length,
 			pagination: response.pagination,

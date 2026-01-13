@@ -7,7 +7,33 @@ export interface ClientContext {
 }
 
 export interface MailboxContext extends ClientContext {
+	/** Full mailbox string, e.g., "Agent <agent@domain.com>" or "agent@domain.com" */
 	mailbox: string;
+	/** Just the email address extracted from mailbox */
+	mailboxAddress: string;
+	/** Display name if provided, e.g., "Agent" */
+	mailboxName: string | null;
+}
+
+/**
+ * Parse an email string that may be in format "Name <email@domain.com>" or just "email@domain.com"
+ * Returns { address, name } where name is null if not provided
+ */
+export function parseEmailAddress(email: string): {
+	address: string;
+	name: string | null;
+} {
+	const match = email.match(/^(.+?)\s*<([^>]+)>$/);
+	if (match) {
+		return {
+			name: match[1].trim(),
+			address: match[2].trim(),
+		};
+	}
+	return {
+		name: null,
+		address: email.trim(),
+	};
 }
 
 export function getClientContext(): ClientContext {
@@ -76,18 +102,22 @@ export function getMailboxContext(): MailboxContext {
 
 	if (!mailbox) {
 		throw new Error(
-			"Missing x-inbound-mailbox header. Set this header to your agent's email address (e.g., 'agent@yourdomain.com') to use mailbox tools.",
+			"Missing x-inbound-mailbox header. Set this header to your agent's email address (e.g., 'Agent <agent@yourdomain.com>') to use mailbox tools.",
 		);
 	}
 
+	// Parse the mailbox header - supports "Name <email>" or just "email"
+	const { address: mailboxAddress, name: mailboxName } =
+		parseEmailAddress(mailbox);
+
 	// Validate mailbox is a proper email format
-	if (!mailbox.includes("@")) {
+	if (!mailboxAddress.includes("@")) {
 		throw new Error(
-			"Invalid x-inbound-mailbox header. Must be a valid email address.",
+			"Invalid x-inbound-mailbox header. Must be a valid email address (e.g., 'Agent <agent@yourdomain.com>' or 'agent@yourdomain.com').",
 		);
 	}
 
 	const client = new Inbound({ apiKey });
 
-	return { client, domain, mailbox };
+	return { client, domain, mailbox, mailboxAddress, mailboxName };
 }

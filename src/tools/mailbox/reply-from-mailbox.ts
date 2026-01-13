@@ -51,7 +51,7 @@ export default async function replyFromMailbox({
 		});
 	}
 
-	const { client, mailbox } = context;
+	const { client, mailbox, mailboxAddress } = context;
 
 	if (!html && !text) {
 		return JSON.stringify({
@@ -59,6 +59,7 @@ export default async function replyFromMailbox({
 		});
 	}
 
+	// Use full mailbox string (with display name) for the from field
 	const response = await client.emails.reply(id, {
 		from: mailbox,
 		subject,
@@ -72,6 +73,7 @@ export default async function replyFromMailbox({
 			id: response.id,
 			message_id: response.message_id,
 			from: mailbox,
+			from_address: mailboxAddress,
 			replied_to_email_id: response.replied_to_email_id,
 			is_thread_reply: response.is_thread_reply,
 			replied_to_thread_id: response.replied_to_thread_id,

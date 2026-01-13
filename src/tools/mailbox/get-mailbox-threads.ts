@@ -48,13 +48,13 @@ export default async function getMailboxThreads({
 		});
 	}
 
-	const { client, mailbox } = context;
+	const { client, mailbox, mailboxAddress } = context;
 
 	const response = await client.mail.list({
 		unread: unread ? "true" : undefined,
 		limit: String(limit ?? 25),
 		cursor,
-		address: mailbox, // Filter to threads involving this mailbox
+		address: mailboxAddress, // Filter to threads involving this mailbox
 	});
 
 	const threads = response.threads.map((t) => ({
@@ -73,6 +73,7 @@ export default async function getMailboxThreads({
 	return JSON.stringify(
 		{
 			mailbox,
+			mailbox_address: mailboxAddress,
 			threads,
 			count: threads.length,
 			pagination: response.pagination,
