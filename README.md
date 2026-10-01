@@ -1,159 +1,60 @@
-# @inbound/mcp
+# Inbound MCP server
 
-MCP (Model Context Protocol) server for the [Inbound Email API](https://inbound.new). Give your AI agent its own email address to send, receive, and manage emails.
+Connect any MCP client (Claude, Cursor, OpenCode, ChatGPT, agents) to [Inbound](https://inbound.new): manage domains, endpoints, addresses, emails, Guard rules and **mailboxes**, which are virtual email accounts that agents can read and send from.
 
-## Quick Start: Agent Mailbox
+**Endpoint:** `https://inbound.new/mcp` (Streamable HTTP, stateless)
 
-The primary use case is giving an AI agent its own email identity. Set the `x-inbound-mailbox` header to your agent's email address:
+## Two ways to connect
 
-```json
-{
-  "mcpServers": {
-    "inbound": {
-      "url": "http://localhost:5454/mcp",
-      "headers": {
-        "x-inbound-api-key": "your-api-key",
-        "x-inbound-mailbox": "Support Agent <support@yourdomain.com>"
-      }
-    }
-  }
-}
-```
+| Credential | What the agent gets |
+|---|---|
+| **Account API key** (from [inbound.new/settings](https://inbound.new/settings)) | Everything: 50 tools covering the Inbound API, including creating mailboxes and acting as any of them |
+| **Mailbox password** (`mail_…`, returned by `create_mailbox`) | Only that mailbox: `whoami`, `list_messages`, `read_message`, `update_message`, `get_thread`, `send_email`, `reply`, `download_attachment` |
 
-The header supports both formats:
-- With display name: `Support Agent <support@yourdomain.com>`
-- Email only: `support@yourdomain.com`
-
-### Mailbox Tools
-
-| Tool | Description |
-|------|-------------|
-| `check_mailbox` | Check incoming emails for your mailbox (defaults to unread) |
-| `get_mailbox_threads` | Get conversation threads where your mailbox is a participant |
-| `send_from_mailbox` | Send emails - `from` is automatically set to your mailbox |
-| `reply_from_mailbox` | Reply to emails/threads - `from` is automatically set to your mailbox |
-
-### Agent Workflow
-
-1. **Check for new emails**: `check_mailbox` returns unread emails with IDs
-2. **Read email details**: Use `get_email` with the email ID to read full content
-3. **Reply to emails**: `reply_from_mailbox` sends replies with your agent identity
-4. **Send new emails**: `send_from_mailbox` sends emails as your agent
-
-When sending, the display name (e.g., "Support Agent") is included so recipients see a friendly sender name.
-
-## Installation
-
-```bash
-npm install @inbound/mcp
-# or
-pnpm add @inbound/mcp
-# or
-bun add @inbound/mcp
-```
-
-## Configuration
-
-### Claude Desktop (STDIO)
-
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+The mailbox password is enforced by the Inbound API, not by this server. An agent holding it can only see mail within the mailbox's scopes and can only send as its identity. The same password also works for IMAP (`imap.inboundemail.com:993`) and SMTP (`smtp.inboundemail.com:465`).
 
 ```json
 {
   "mcpServers": {
     "inbound": {
-      "command": "npx",
-      "args": ["-y", "@inbound/mcp"],
-      "env": {
-        "INBOUND_API_KEY": "your-api-key",
-        "INBOUND_MAILBOX": "Agent <agent@yourdomain.com>"
-      }
+      "type": "http",
+      "url": "https://inbound.new/mcp",
+      "headers": { "Authorization": "Bearer <api key or mailbox password>" }
     }
   }
 }
 ```
 
-### Cursor / Other MCP Clients (HTTP)
+`x-inbound-api-key: <key>` is also accepted. Clients that only speak STDIO can use `npx mcp-remote https://inbound.new/mcp --header "Authorization:Bearer ${INBOUND_API_KEY}"`.
 
-Start the server:
+### Limit the tool list
 
-```bash
-npx @inbound/mcp start:http
-```
+Add `?toolsets=` (or an `x-inbound-toolsets` header) with any of `domains,endpoints,addresses,emails,mailboxes,guard`, e.g. `https://inbound.new/mcp?toolsets=mailboxes,emails`.
 
-Then configure your client:
+## Give an agent its own inbox
 
-```json
-{
-  "mcpServers": {
-    "inbound": {
-      "url": "http://localhost:5454/mcp",
-      "headers": {
-        "x-inbound-api-key": "your-api-key",
-        "x-inbound-mailbox": "Agent <agent@yourdomain.com>"
-      }
-    }
-  }
-}
-```
+1. With the account key: `create_mailbox { "address": "agent@yourdomain.com", "sending_name": "Support Agent" }`.
+2. Give the returned password to the agent as its bearer token.
+3. The agent loops: `list_messages { unread_only: true }` → `read_message` → `reply` → `update_message { is_archived: true }`.
 
-## Authentication
+Mailboxes, read state and sent mail are stored by Inbound, so they show up in the dashboard and over IMAP too.
 
-The MCP server authenticates using your Inbound API key:
+## Tools (account key)
 
-- **Environment variable**: `INBOUND_API_KEY`
-- **HTTP header**: `x-inbound-api-key`
-
-### Optional: Domain Restriction
-
-To restrict all operations to a single domain:
-
-- **Environment variable**: `INBOUND_DOMAIN`
-- **HTTP header**: `x-inbound-domain`
-
-## All Available Tools
-
-### Mailbox (Agent Mode)
-- `check_mailbox` - Check incoming emails for your mailbox
-- `get_mailbox_threads` - Get conversation threads for your mailbox
-- `send_from_mailbox` - Send an email from your mailbox
-- `reply_from_mailbox` - Reply to an email from your mailbox
-
-### Emails
-- `list_emails` - List sent, received, and scheduled emails
-- `get_email` - Get detailed information about a specific email
-- `send_email` - Send or schedule an email
-- `reply_email` - Reply to an email or thread
-- `retry_email` - Retry delivery of a failed email
-
-### Threads
-- `list_threads` - List email conversations
-- `get_thread` - Get all messages in a thread
-
-### Domains
-- `list_domains` - List all domains in your account
-
-### Endpoints
-- `list_endpoints` - List webhook and email forwarding endpoints
-- `create_endpoint` - Create a webhook, email forward, or email group endpoint
-
-## Available Prompts
-
-- `getting-started` - Learn how to use Inbound Email API
+- **Domains:** `list_domains`, `get_domain`, `create_domain`, `update_domain`, `delete_domain`, `enable_domain_dkim`
+- **Endpoints:** `list_endpoints`, `get_endpoint`, `create_endpoint`, `update_endpoint`, `delete_endpoint`, `test_endpoint`
+- **Addresses:** `list_email_addresses`, `get_email_address`, `create_email_address`, `update_email_address`, `delete_email_address`
+- **Emails:** `list_emails`, `get_email`, `send_email`, `reply_to_email`, `update_email`, `cancel_scheduled_email`, `pause_scheduled_email`, `resume_scheduled_email`, `retry_email_delivery`, `list_threads`, `get_thread`, `list_attachments`, `download_attachment`
+- **Mailboxes:** `list_mailboxes`, `create_mailbox`, `update_mailbox`, `delete_mailbox`, `rotate_mailbox_password`, `get_mailbox`, `list_mailbox_messages`, `read_mailbox_message`, `update_mailbox_message`, `get_mailbox_thread`, `send_from_mailbox`, `reply_from_mailbox`, `download_mailbox_attachment`
+- **Guard:** `list_guard_rules`, `get_guard_rule`, `create_guard_rule`, `update_guard_rule`, `delete_guard_rule`, `check_guard_rule`, `generate_guard_rule`
 
 ## Development
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Run in development mode
-pnpm dev
-
-# Build for production
-pnpm build
+bun install
+bun run dev        # http://localhost:5454/mcp, against production unless INBOUND_API_URL is set
+bun run typecheck
+INBOUND_API_KEY=... bun run stdio   # STDIO transport
 ```
 
-## License
-
-Apache-2.0
+Deployed on Vercel (team `inbound`, project `inbound-mcp`) as one function, `api/mcp.ts`. `inbound.new/mcp` rewrites to it from the main app.
