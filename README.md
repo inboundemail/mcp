@@ -4,11 +4,12 @@ Connect any MCP client (Claude, Cursor, OpenCode, ChatGPT, agents) to [Inbound](
 
 **Endpoint:** `https://inbound.new/mcp` (Streamable HTTP, stateless)
 
-## Two ways to connect
+## Three ways to connect
 
 | Credential | What the agent gets |
 |---|---|
-| **Account API key** (from [inbound.new/settings](https://inbound.new/settings)) | Everything: 50 tools covering the Inbound API, including creating mailboxes and acting as any of them |
+| **OAuth** (just add the URL; the client opens Inbound to sign in) | Everything: 50 tools covering the Inbound API, including creating mailboxes and acting as any of them |
+| **Account API key** (from [inbound.new/settings](https://inbound.new/settings)) | The same as OAuth, for scripts and clients without OAuth |
 | **Mailbox password** (`mail_…`, returned by `create_mailbox`) | Only that mailbox: `whoami`, `list_messages`, `read_message`, `update_message`, `get_thread`, `send_email`, `reply`, `download_attachment` |
 
 The mailbox password is enforced by the Inbound API, not by this server. An agent holding it can only see mail within the mailbox's scopes and can only send as its identity. The same password also works for IMAP (`imap.inboundemail.com:993`) and SMTP (`smtp.inboundemail.com:465`).
@@ -24,6 +25,8 @@ The mailbox password is enforced by the Inbound API, not by this server. An agen
   }
 }
 ```
+
+Leave out `headers` to use OAuth. Discovery follows the MCP authorization spec: the `401` points to `https://inbound.new/.well-known/oauth-protected-resource/mcp`, the authorization server is `https://inbound.new/api/auth` (dynamic client registration, PKCE), and tokens carry the `inbound:account` scope for the `https://inbound.new/mcp` audience. This server verifies them against Inbound's JWKS and forwards them to the API.
 
 `x-inbound-api-key: <key>` is also accepted. Clients that only speak STDIO can use `npx mcp-remote https://inbound.new/mcp --header "Authorization:Bearer ${INBOUND_API_KEY}"`.
 
