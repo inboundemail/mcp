@@ -1,5 +1,37 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 import { createInboundServer, parseToolsets, VERSION } from "./server.js";
+
+const PUBLIC_ORIGIN = process.env.INBOUND_PUBLIC_URL || "https://inbound.new";
+const RESOURCE = `${PUBLIC_ORIGIN}/mcp`;
+const ISSUER = `${PUBLIC_ORIGIN}/api/auth`;
+const RESOURCE_METADATA = `${PUBLIC_ORIGIN}/.well-known/oauth-protected-resource/mcp`;
+const ACCOUNT_SCOPE = "inbound:account";
+const jwks = createRemoteJWKSet(new URL(`${ISSUER}/jwks`));
+const JWT_SHAPE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+
+/** Checks an OAuth access token before use so expired tokens get a 401 the client can refresh on. */
+async function oauthTokenError(token: string): Promise<string | null> {
+	if (!JWT_SHAPE.test(token)) return null; // API key or mailbox password
+	try {
+		const { payload } = await jwtVerify(token, jwks, {
+			issuer: [ISSUER, PUBLIC_ORIGIN],
+			audience: RESOURCE,
+		});
+		const scopes = typeof payload.scope === "string" ? payload.scope.split(" ") : [];
+		return scopes.includes(ACCOUNT_SCOPE) ? null : "insufficient_scope";
+	} catch {
+		return "invalid_token";
+	}
+}
+
+function challenge(error?: string): string {
+	return [
+		`Bearer resource_metadata="${RESOURCE_METADATA}"`,
+		`scope="${ACCOUNT_SCOPE} offline_access"`,
+		...(error ? [`error="${error}"`] : []),
+	].join(", ");
+}
 
 const CORS_HEADERS: Record<string, string> = {
 	"Access-Control-Allow-Origin": "*",
@@ -45,7 +77,7 @@ export async function handleMcpRequest(
 				version: VERSION,
 				transport: "streamable-http",
 				docs: "https://inbound.new/docs/integrations/mcp",
-				auth: "Authorization: Bearer <Inbound API key or mailbox password>",
+				auth: "OAuth (inbound.new), or Authorization: Bearer <Inbound API key or mailbox password>",
 			});
 		}
 		return json(
@@ -64,11 +96,29 @@ export async function handleMcpRequest(
 				error: {
 					code: -32001,
 					message:
-						"Missing credentials. Send your Inbound API key (inbound.new/settings) or a mailbox password as 'Authorization: Bearer <key>'.",
+						"Sign in with OAuth, or send an Inbound API key (inbound.new/settings) or mailbox password as 'Authorization: Bearer <key>'.",
 				},
 				id: null,
 			},
-			{ "WWW-Authenticate": 'Bearer realm="inbound"' },
+			{ "WWW-Authenticate": challenge() },
+		);
+	}
+	const tokenError = await oauthTokenError(token);
+	if (tokenError) {
+		return json(
+			tokenError === "insufficient_scope" ? 403 : 401,
+			{
+				jsonrpc: "2.0",
+				error: {
+					code: -32001,
+					message:
+						tokenError === "insufficient_scope"
+							? "This token lacks the inbound:account scope."
+							: "The access token is invalid or expired.",
+				},
+				id: null,
+			},
+			{ "WWW-Authenticate": challenge(tokenError) },
 		);
 	}
 

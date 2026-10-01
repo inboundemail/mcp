@@ -6,6 +6,7 @@
       "name": "@inbound/mcp",
       "dependencies": {
         "@modelcontextprotocol/sdk": "1.31.0",
+        "jose": "^6",
         "zod": "^4.1.12",
       },
       "devDependencies": {
