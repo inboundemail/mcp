@@ -10,9 +10,9 @@ Connect any MCP client (Claude, Cursor, OpenCode, ChatGPT, agents) to [Inbound](
 |---|---|
 | **OAuth** (just add the URL; the client opens Inbound to sign in) | All account tools, including creating mailboxes and acting as any of them |
 | **Account API key** (from [inbound.new/settings](https://inbound.new/settings)) | The same as OAuth, for scripts and clients without OAuth |
-| **Mailbox password** (`mail_…`, returned by `create_mailbox`) | Only that mailbox: `whoami`, `list_messages`, `read_message`, `update_message`, `get_thread`, `send_email`, `reply`, `download_attachment`, plus the folder, folder-message, filter and spam tools [listed below](#tools-account-key), without `mailbox_id`. Filters require `selfService.filters`; spam settings require `selfService.spam`. Otherwise the API returns `403`. |
+| **Mailbox password** (`mail_…`, returned by `create_mailbox`) | Only that mailbox: `whoami`, `list_messages`, `read_message`, `update_message`, `get_thread`, `send_email`, `reply`, `download_attachment`, plus the [folder, folder-message, filter and spam tools](#tools-account-key), `list_mailbox_activity` and `rotate_my_password`. None take `mailbox_id`. Filters, spam settings, activity and password rotation each require their respective `self_service` flag (`filters`, `spam`, `activity`, `password`); otherwise the API returns `403`. |
 
-The mailbox password is enforced by the Inbound API, not by this server. An agent holding it can only see mail within the mailbox's scopes and can only send as its identity. The same password also works for IMAP (`imap.inboundemail.com:993`) and SMTP (`smtp.inboundemail.com:465`).
+The Inbound API enforces mailbox scopes and limits. An account can set `protocols`, `allowed_ips`, `storage_quota_bytes`, `daily_send_limit` and `self_service` with `create_mailbox` or `update_mailbox`. The password works as an MCP bearer token and for IMAP (`imap.inboundemail.com:993`) and SMTP (`smtp.inboundemail.com:465`) only where the protocol and IP are allowed. For MCP, the allowlist must include the MCP server's outgoing IP, not the agent's. Changing protocols, allowed IPs or self-service immediately closes open IMAP sessions. The daily limit counts only sends and replies authenticated by the mailbox password, not account-key sends.
 
 ```json
 {
@@ -53,6 +53,7 @@ Mailboxes, read state and sent mail are stored by Inbound, so they show up in th
 - **Folder messages (by folder path and UID, not account email ID):** `list_folder_messages`, `get_folder_message`, `get_folder_message_raw`, `set_message_flags`, `move_message`, `copy_message`, `delete_folder_message`, `expunge_folder`, `append_message`, `list_folder_message_attachments`, `download_folder_message_attachment`
 - **Mailbox filters:** `list_mailbox_filters`, `get_mailbox_filter`, `create_mailbox_filter`, `update_mailbox_filter`, `delete_mailbox_filter`, `reorder_mailbox_filters`, `apply_mailbox_filters`. Enabled filters run on new received mail; use `apply_mailbox_filters` to process an existing folder.
 - **Mailbox spam:** `get_mailbox_spam_settings`, `set_mailbox_spam_settings`, `add_spam_list_entry`, `remove_spam_list_entry`. These affect only this mailbox, not the account verdict.
+- **Mailbox activity:** `list_mailbox_activity` reads one mailbox's log; `list_account_activity` reads across the account, optionally filtered by `mailbox_id`. Both list sign-ins, IMAP session events, quota errors and send failures, newest first. Events are retained for 30 days; message content and passwords are never logged.
 - **Guard:** `list_guard_rules`, `get_guard_rule`, `create_guard_rule`, `update_guard_rule`, `delete_guard_rule`, `check_guard_rule`, `generate_guard_rule`
 
 ## Development
