@@ -8,9 +8,9 @@ Connect any MCP client (Claude, Cursor, OpenCode, ChatGPT, agents) to [Inbound](
 
 | Credential | What the agent gets |
 |---|---|
-| **OAuth** (just add the URL; the client opens Inbound to sign in) | Everything: 50 tools covering the Inbound API, including creating mailboxes and acting as any of them |
+| **OAuth** (just add the URL; the client opens Inbound to sign in) | All account tools, including creating mailboxes and acting as any of them |
 | **Account API key** (from [inbound.new/settings](https://inbound.new/settings)) | The same as OAuth, for scripts and clients without OAuth |
-| **Mailbox password** (`mail_…`, returned by `create_mailbox`) | Only that mailbox: `whoami`, `list_messages`, `read_message`, `update_message`, `get_thread`, `send_email`, `reply`, `download_attachment` |
+| **Mailbox password** (`mail_…`, returned by `create_mailbox`) | Only that mailbox: `whoami`, `list_messages`, `read_message`, `update_message`, `get_thread`, `send_email`, `reply`, `download_attachment`, plus the folder, folder-message, filter and spam tools [listed below](#tools-account-key), without `mailbox_id`. Filters require `selfService.filters`; spam settings require `selfService.spam`. Otherwise the API returns `403`. |
 
 The mailbox password is enforced by the Inbound API, not by this server. An agent holding it can only see mail within the mailbox's scopes and can only send as its identity. The same password also works for IMAP (`imap.inboundemail.com:993`) and SMTP (`smtp.inboundemail.com:465`).
 
@@ -49,6 +49,10 @@ Mailboxes, read state and sent mail are stored by Inbound, so they show up in th
 - **Addresses:** `list_email_addresses`, `get_email_address`, `create_email_address`, `update_email_address`, `delete_email_address`
 - **Emails:** `list_emails`, `get_email`, `send_email`, `reply_to_email`, `update_email`, `cancel_scheduled_email`, `pause_scheduled_email`, `resume_scheduled_email`, `retry_email_delivery`, `list_threads`, `get_thread`, `list_attachments`, `download_attachment`
 - **Mailboxes:** `list_mailboxes`, `create_mailbox`, `update_mailbox`, `delete_mailbox`, `rotate_mailbox_password`, `get_mailbox`, `list_mailbox_messages`, `read_mailbox_message`, `update_mailbox_message`, `get_mailbox_thread`, `send_from_mailbox`, `reply_from_mailbox`, `download_mailbox_attachment`
+- **Mailbox folders:** `list_mailbox_folders`, `create_mailbox_folder`, `rename_mailbox_folder`, `delete_mailbox_folder`
+- **Folder messages (by folder path and UID, not account email ID):** `list_folder_messages`, `get_folder_message`, `get_folder_message_raw`, `set_message_flags`, `move_message`, `copy_message`, `delete_folder_message`, `expunge_folder`, `append_message`, `list_folder_message_attachments`, `download_folder_message_attachment`
+- **Mailbox filters:** `list_mailbox_filters`, `get_mailbox_filter`, `create_mailbox_filter`, `update_mailbox_filter`, `delete_mailbox_filter`, `reorder_mailbox_filters`, `apply_mailbox_filters`. Enabled filters run on new received mail; use `apply_mailbox_filters` to process an existing folder.
+- **Mailbox spam:** `get_mailbox_spam_settings`, `set_mailbox_spam_settings`, `add_spam_list_entry`, `remove_spam_list_entry`. These affect only this mailbox, not the account verdict.
 - **Guard:** `list_guard_rules`, `get_guard_rule`, `create_guard_rule`, `update_guard_rule`, `delete_guard_rule`, `check_guard_rule`, `generate_guard_rule`
 
 ## Development
