@@ -6,6 +6,7 @@ import { domainTools } from "./tools/domains.js";
 import { emailTools } from "./tools/emails.js";
 import { endpointTools } from "./tools/endpoints.js";
 import { guardTools } from "./tools/guard.js";
+import { mailboxFilterTools } from "./tools/mailbox-filters.js";
 import { mailboxFolderTools } from "./tools/mailbox-folders.js";
 import { mailboxAccessTools, mailboxAdminTools } from "./tools/mailboxes.js";
 
@@ -57,7 +58,7 @@ export function createInboundServer(options: {
 		{ instructions: mode === "mailbox" ? MAILBOX_INSTRUCTIONS : ACCOUNT_INSTRUCTIONS },
 	);
 	const api = new InboundClient(options.token, options.apiUrl ?? DEFAULT_API_URL);
-	const mailboxTools = [...mailboxAccessTools(mode), ...mailboxFolderTools(mode)];
+	const mailboxTools = [...mailboxAccessTools(mode), ...mailboxFolderTools(mode), ...mailboxFilterTools(mode)];
 
 	let tools: AnyTool[];
 	if (mode === "mailbox") {
