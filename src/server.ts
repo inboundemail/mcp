@@ -8,7 +8,7 @@ import { endpointTools } from "./tools/endpoints.js";
 import { guardTools } from "./tools/guard.js";
 import { mailboxFilterTools } from "./tools/mailbox-filters.js";
 import { mailboxFolderTools } from "./tools/mailbox-folders.js";
-import { mailboxAccessTools, mailboxAdminTools } from "./tools/mailboxes.js";
+import { mailboxAccessTools, mailboxAdminTools, rotateMyPassword } from "./tools/mailboxes.js";
 
 export const VERSION = "1.0.0";
 
@@ -62,7 +62,7 @@ export function createInboundServer(options: {
 
 	let tools: AnyTool[];
 	if (mode === "mailbox") {
-		tools = mailboxTools;
+		tools = [...mailboxTools, rotateMyPassword];
 	} else {
 		const sets: Record<Toolset, AnyTool[]> = {
 			domains: domainTools,

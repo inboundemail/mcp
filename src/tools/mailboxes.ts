@@ -41,6 +41,26 @@ const scopeInput = z
 	.min(1)
 	.max(100);
 
+const accessControls = {
+	protocols: z.strictObject({
+		imap: z.boolean().optional(),
+		smtp: z.boolean().optional(),
+		api: z.boolean().optional(),
+	}).nullable().optional().describe("Protocols allowed for the mailbox password. All enabled by default; null resets to that default. Updates merge the supplied keys."),
+	allowed_ips: z.array(z.string().min(1).max(64)).max(100).nullable().optional()
+		.describe("Permit the mailbox password only from these IPv4/IPv6 addresses or CIDRs. null or [] allows any IP."),
+	storage_quota_bytes: z.number().int().min(1).nullable().optional()
+		.describe("Byte cap for appended messages, drafts and saved Sent copies. Received mail does not count. null removes this cap."),
+	daily_send_limit: z.number().int().min(0).max(1_000_000).nullable().optional()
+		.describe("Sends and replies per UTC day authenticated by the mailbox password (SMTP or HTTP). Account-key sends do not count. 0 blocks sending; null removes this limit."),
+	self_service: z.strictObject({
+		filters: z.boolean().optional(),
+		spam: z.boolean().optional(),
+		password: z.boolean().optional(),
+		activity: z.boolean().optional(),
+	}).nullable().optional().describe("Allow the mailbox password to manage filters, spam settings, rotate itself or read its own activity. All off by default; null turns all off. Updates merge the supplied keys."),
+};
+
 async function domainIds(api: InboundClient): Promise<Map<string, string>> {
 	const ids = new Map<string, string>();
 	for (let offset = 0; offset < 1000; offset += 100) {
@@ -74,10 +94,10 @@ async function resolveScopes(
 	});
 }
 
-function connectionInfo(loginAddress: string, password: string) {
+function connectionInfo(loginAddress: string | undefined, password: string, rotationTool = "rotate_mailbox_password") {
 	return {
 		password,
-		passwordNote: "Shown once. Store it securely; rotate_mailbox_password issues a new one.",
+		passwordNote: `Shown once. Store it securely; ${rotationTool} issues a new one.`,
 		mcp: {
 			url: MCP_URL,
 			headers: { Authorization: `Bearer ${password}` },
@@ -102,7 +122,7 @@ export const mailboxAdminTools = [
 		name: "create_mailbox",
 		title: "Create mailbox",
 		description:
-			"Create a mailbox (a virtual email account), e.g. for an AI agent. By default it reads mail sent to its address and sends as that address. Returns a password, shown once, that works as an MCP bearer token (mailbox-only access) and for IMAP/SMTP. The address must be on a verified domain.",
+			"Create a mailbox on a verified domain. By default it reads and sends as its own address. Returns a password shown once for MCP, IMAP and SMTP, subject to the protocol, IP and usage limits you set.",
 		input: {
 			address: z.string().describe("Login address, e.g. agent@example.com"),
 			name: z.string().optional().describe("Label shown in the dashboard (default: the address)"),
@@ -120,6 +140,7 @@ export const mailboxAdminTools = [
 				.optional()
 				.describe("Allow sending as any address on its scoped domains instead of one identity"),
 			smtp_only: z.boolean().optional().describe("Create a send-only SMTP credential instead"),
+			...accessControls,
 		},
 		run: async (args, { api }) => {
 			const address = args.address.trim().toLowerCase();
@@ -139,6 +160,11 @@ export const mailboxAdminTools = [
 					sendingName: args.sending_name ?? null,
 					sendingAddress: scopedDomains ? null : (args.sending_address ?? address),
 					scopes,
+					protocols: args.protocols,
+					allowedIps: args.allowed_ips,
+					storageQuotaBytes: args.storage_quota_bytes,
+					dailySendLimit: args.daily_send_limit,
+					selfService: args.self_service,
 				},
 			);
 			return { mailbox: created.data, ...connectionInfo(address, created.password) };
@@ -148,7 +174,8 @@ export const mailboxAdminTools = [
 		name: "update_mailbox",
 		title: "Update mailbox",
 		description:
-			"Change a mailbox's name, sending identity, access mode or scopes, or disable/enable it. Only the fields you pass change; scopes replace the existing list.",
+			"Change a mailbox's identity, scopes, access controls, limits or enabled state. Only supplied fields change; scopes replace the existing list. Changing protocols, allowed_ips or self_service immediately ends open IMAP sessions for this credential.",
+		destructive: true,
 		idempotent: true,
 		input: {
 			mailbox_id: z.string(),
@@ -159,6 +186,7 @@ export const mailboxAdminTools = [
 			sending_address: z.string().nullable().optional(),
 			send_as_any_scoped_domain: z.boolean().optional(),
 			scopes: scopeInput.optional(),
+			...accessControls,
 		},
 		run: async (args, { api }) => {
 			const scopes = args.scopes ? await resolveScopes(api, args.scopes) : undefined;
@@ -177,6 +205,11 @@ export const mailboxAdminTools = [
 								? "scoped_domains"
 								: "identity",
 					scopes,
+					protocols: args.protocols,
+					allowedIps: args.allowed_ips,
+					storageQuotaBytes: args.storage_quota_bytes,
+					dailySendLimit: args.daily_send_limit,
+					selfService: args.self_service,
 				}),
 			);
 		},
@@ -208,6 +241,18 @@ export const mailboxAdminTools = [
 		},
 	}),
 ];
+
+export const rotateMyPassword = tool({
+	name: "rotate_my_password",
+	title: "Rotate my mailbox password",
+	description: "Requires selfService.password; otherwise returns 403. Revoke your current password immediately and issue a new one, shown once. Replace your MCP bearer token and update IMAP/SMTP clients, keeping the same login address.",
+	destructive: true,
+	input: {},
+	run: async (_args, { api }) => {
+		const { password } = await api.post<{ password: string }>("/mailboxes/me/rotate-password");
+		return connectionInfo(undefined, password, "rotate_my_password");
+	},
+});
 
 /**
  * Tools that act as one mailbox. In account mode they take a mailbox_id; in
