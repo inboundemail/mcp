@@ -6,6 +6,7 @@ import { domainTools } from "./tools/domains.js";
 import { emailTools } from "./tools/emails.js";
 import { endpointTools } from "./tools/endpoints.js";
 import { guardTools } from "./tools/guard.js";
+import { listAccountActivity, mailboxActivityTools } from "./tools/mailbox-activity.js";
 import { mailboxFilterTools } from "./tools/mailbox-filters.js";
 import { mailboxFolderTools } from "./tools/mailbox-folders.js";
 import { mailboxAccessTools, mailboxAdminTools, rotateMyPassword } from "./tools/mailboxes.js";
@@ -58,7 +59,7 @@ export function createInboundServer(options: {
 		{ instructions: mode === "mailbox" ? MAILBOX_INSTRUCTIONS : ACCOUNT_INSTRUCTIONS },
 	);
 	const api = new InboundClient(options.token, options.apiUrl ?? DEFAULT_API_URL);
-	const mailboxTools = [...mailboxAccessTools(mode), ...mailboxFolderTools(mode), ...mailboxFilterTools(mode)];
+	const mailboxTools = [...mailboxAccessTools(mode), ...mailboxFolderTools(mode), ...mailboxFilterTools(mode), ...mailboxActivityTools(mode)];
 
 	let tools: AnyTool[];
 	if (mode === "mailbox") {
@@ -69,7 +70,7 @@ export function createInboundServer(options: {
 			endpoints: endpointTools,
 			addresses: addressTools,
 			emails: emailTools,
-			mailboxes: [...mailboxAdminTools, ...mailboxTools],
+			mailboxes: [...mailboxAdminTools, ...mailboxTools, listAccountActivity],
 			guard: guardTools,
 		};
 		const enabled = options.toolsets ?? new Set(TOOLSETS);
